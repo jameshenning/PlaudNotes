@@ -10,4 +10,8 @@ services:
       - PLAUD_TRANSPORT=http
       - PLAUD_MCP_HOST=0.0.0.0
       - PLAUD_MCP_PORT=8000
+      - PLAUD_MCP_API_KEY=${PLAUD_MCP_API_KEY:-}
     restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true

@@ -7,12 +7,28 @@ at api.plaud.ai used by web.plaud.ai.
 
 from __future__ import annotations
 
+import logging
 import os
+import re
+import stat
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+# Strict pattern for Plaud file IDs (32-char hex)
+_FILE_ID_PATTERN = re.compile(r"^[a-fA-F0-9]{24,64}$")
+
+# Allowed API domains for redirect safety
+_ALLOWED_API_DOMAINS = frozenset({
+    "api.plaud.ai",
+    "api-euc1.plaud.ai",
+    "api-use1.plaud.ai",
+})
 
 # Regional API base URLs
 API_DOMAINS = {
@@ -154,7 +170,7 @@ class PlaudClient:
     ):
         self._token = self._resolve_token(token)
         if api_domain:
-            self._base_url = api_domain.rstrip("/")
+            self._base_url = self._validate_api_url(api_domain)
         else:
             self._base_url = API_DOMAINS.get(region, API_DOMAINS["us"])
 
@@ -163,6 +179,32 @@ class PlaudClient:
             headers=self._build_headers(),
             timeout=DEFAULT_TIMEOUT,
         )
+
+    @staticmethod
+    def _validate_file_id(file_id: str) -> str:
+        """Validate that a file_id is a safe hex string."""
+        if not _FILE_ID_PATTERN.match(file_id):
+            raise PlaudAPIError(
+                f"Invalid file_id format: expected 24-64 character hex string, "
+                f"got {file_id!r:.50}"
+            )
+        return file_id
+
+    @staticmethod
+    def _validate_api_url(url: str) -> str:
+        """Validate that an API URL is HTTPS and points to a known Plaud domain."""
+        url = url.rstrip("/")
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
+            raise PlaudAPIError(
+                f"API URL must use HTTPS, got {parsed.scheme!r}"
+            )
+        if parsed.hostname not in _ALLOWED_API_DOMAINS:
+            raise PlaudAPIError(
+                f"API domain {parsed.hostname!r} is not a recognized Plaud domain. "
+                f"Allowed: {', '.join(sorted(_ALLOWED_API_DOMAINS))}"
+            )
+        return url
 
     @staticmethod
     def _resolve_token(token: str | None) -> str:
@@ -177,6 +219,17 @@ class PlaudClient:
         # Check config file
         config_path = os.path.expanduser("~/.config/plaud/token")
         if os.path.isfile(config_path):
+            # Warn if token file is readable by others
+            try:
+                file_mode = os.stat(config_path).st_mode
+                if file_mode & (stat.S_IRGRP | stat.S_IROTH):
+                    logger.warning(
+                        "Token file %s is readable by other users (mode %o). "
+                        "Run: chmod 600 %s",
+                        config_path, file_mode & 0o777, config_path,
+                    )
+            except OSError:
+                pass
             with open(config_path) as f:
                 file_token = f.read().strip()
             if file_token:
@@ -226,10 +279,11 @@ class PlaudClient:
                 data = response.json()
 
                 # Handle region mismatch: API returns status -302
-                # with the correct domain to use
+                # with the correct domain to use.
+                # Only redirect to known Plaud API domains.
                 if isinstance(data, dict) and data.get("status") == -302:
                     correct_domain = data.get("domain", "")
-                    if correct_domain:
+                    if correct_domain and correct_domain in _ALLOWED_API_DOMAINS:
                         new_base = f"https://{correct_domain}"
                         self._client = httpx.Client(
                             base_url=new_base,
@@ -238,6 +292,11 @@ class PlaudClient:
                         )
                         self._base_url = new_base
                         return self._request(method, path, **kwargs)
+                    elif correct_domain:
+                        logger.warning(
+                            "Ignoring redirect to untrusted domain: %s",
+                            correct_domain,
+                        )
 
                 return data
             except PlaudAuthError:
@@ -246,16 +305,23 @@ class PlaudClient:
                 if e.response.status_code >= 500 and attempt < 2:
                     last_error = e
                     continue
+                # Sanitize: don't include full response body which may
+                # contain sensitive data in error messages
                 raise PlaudAPIError(
-                    f"API error: {e.response.status_code} {e.response.text}",
+                    f"API error: HTTP {e.response.status_code}",
                     status_code=e.response.status_code,
-                ) from e
+                ) from None
             except httpx.RequestError as e:
                 if attempt < 2:
                     last_error = e
                     continue
-                raise PlaudAPIError(f"Request failed: {e}") from e
-        raise PlaudAPIError(f"Request failed after retries: {last_error}")
+                # Sanitize: strip potential token/header info from error
+                raise PlaudAPIError(
+                    f"Request failed: {type(e).__name__}"
+                ) from None
+        raise PlaudAPIError(
+            f"Request failed after retries: {type(last_error).__name__}"
+        )
 
     def _get(self, path: str, **kwargs: Any) -> dict[str, Any]:
         return self._request("GET", path, **kwargs)
@@ -265,6 +331,8 @@ class PlaudClient:
 
     # ── Recordings ──────────────────────────────────────────────
 
+    _ALLOWED_SORT_FIELDS = frozenset({"edit_time", "start_time"})
+
     def list_recordings(
         self,
         limit: int = 100,
@@ -273,6 +341,8 @@ class PlaudClient:
         descending: bool = True,
     ) -> list[Recording]:
         """List all recordings in the account."""
+        if sort_by not in self._ALLOWED_SORT_FIELDS:
+            sort_by = "edit_time"
         data = self._get(
             "/file/simple/web",
             params={
@@ -294,11 +364,13 @@ class PlaudClient:
 
     def get_recording_detail(self, file_id: str) -> dict[str, Any]:
         """Get full detail for a recording including transcript and AI content."""
+        file_id = self._validate_file_id(file_id)
         data = self._get(f"/file/detail/{file_id}")
         return data.get("data", data)
 
     def get_audio_url(self, file_id: str) -> str:
         """Get a temporary download URL for the recording audio."""
+        file_id = self._validate_file_id(file_id)
         data = self._get(f"/file/temp-url/{file_id}", params={"is_opus": 0})
         # API returns temp_url at top level
         return data.get("temp_url", data.get("data", {}).get("url", ""))
@@ -307,6 +379,7 @@ class PlaudClient:
 
     def get_transcript(self, file_id: str) -> Transcript:
         """Get the transcript for a recording."""
+        file_id = self._validate_file_id(file_id)
         detail = self.get_recording_detail(file_id)
         trans_result = detail.get("trans_result", {})
 
@@ -323,6 +396,7 @@ class PlaudClient:
 
     def get_summary(self, file_id: str) -> str:
         """Get the AI-generated summary for a recording."""
+        file_id = self._validate_file_id(file_id)
         detail = self.get_recording_detail(file_id)
         ai_content = detail.get("ai_content", "")
         if isinstance(ai_content, dict):
@@ -331,6 +405,7 @@ class PlaudClient:
 
     def get_notes(self, file_id: str) -> str:
         """Get AI-generated notes for a recording."""
+        file_id = self._validate_file_id(file_id)
         try:
             data = self._get("/ai/query_note", params={"file_id": file_id})
             return data.get("data", {}).get("content", "")

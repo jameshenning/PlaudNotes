@@ -6,10 +6,15 @@ via the Model Context Protocol (MCP).
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import logging
 import os
+import secrets
 
 from dotenv import load_dotenv
+from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.fastmcp import FastMCP
 
 from plaud_notes_mcp.plaud_client import (
@@ -20,15 +25,77 @@ from plaud_notes_mcp.plaud_client import (
 
 load_dotenv()
 
-mcp = FastMCP(
-    "Plaud Notes",
-    instructions=(
-        "Access your Plaud Notes recordings, transcripts, and AI summaries. "
-        "Search across all your voice notes for context and historical reference."
-    ),
-    host=os.environ.get("PLAUD_MCP_HOST", "127.0.0.1"),
-    port=int(os.environ.get("PLAUD_MCP_PORT", "8000")),
-)
+logger = logging.getLogger(__name__)
+
+
+# ── API Key Authentication for HTTP transport ──────────────────
+
+
+class APIKeyTokenVerifier:
+    """Verifies Bearer tokens against a pre-shared API key.
+
+    Used when the MCP server runs in HTTP mode to prevent
+    unauthorized access to your Plaud Notes data.
+    """
+
+    def __init__(self, api_key: str):
+        self._api_key_hash = hashlib.sha256(api_key.encode()).digest()
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        token_hash = hashlib.sha256(token.encode()).digest()
+        if hmac.compare_digest(token_hash, self._api_key_hash):
+            return AccessToken(
+                token=token,
+                client_id="plaud-mcp-client",
+                scopes=["read"],
+            )
+        return None
+
+
+def _build_server() -> FastMCP:
+    """Build the FastMCP server with appropriate auth settings."""
+    transport = os.environ.get("PLAUD_TRANSPORT", "stdio")
+    api_key = os.environ.get("PLAUD_MCP_API_KEY", "")
+
+    kwargs: dict = {
+        "host": os.environ.get("PLAUD_MCP_HOST", "127.0.0.1"),
+        "port": int(os.environ.get("PLAUD_MCP_PORT", "8000")),
+    }
+
+    # Enable token verification for HTTP transport when API key is set
+    if transport == "http" and api_key:
+        kwargs["token_verifier"] = APIKeyTokenVerifier(api_key)
+
+    return FastMCP(
+        "Plaud Notes",
+        instructions=(
+            "Access your Plaud Notes recordings, transcripts, and AI summaries. "
+            "Search across all your voice notes for context and historical reference."
+        ),
+        **kwargs,
+    )
+
+
+mcp = _build_server()
+
+
+def _check_http_security() -> None:
+    """Warn at startup if HTTP transport is used without an API key."""
+    transport = os.environ.get("PLAUD_TRANSPORT", "stdio")
+    if transport == "http":
+        api_key = os.environ.get("PLAUD_MCP_API_KEY", "")
+        if not api_key:
+            logger.warning(
+                "\n" + "=" * 60 + "\n"
+                "WARNING: HTTP transport is enabled WITHOUT an API key.\n"
+                "Your MCP server is accessible to anyone who can reach it.\n"
+                "Set PLAUD_MCP_API_KEY to require Bearer token auth.\n"
+                "Generate one with:\n"
+                "  python -c \"import secrets; print(secrets.token_urlsafe(32))\"\n"
+                + "=" * 60
+            )
+        else:
+            logger.info("HTTP transport: API key authentication enabled.")
 
 # ── Client singleton ────────────────────────────────────────────
 
@@ -470,7 +537,13 @@ def main() -> None:
     Transport is selected via PLAUD_TRANSPORT env var:
       - "stdio" (default) for Claude Code CLI / Claude Desktop local
       - "http" for remote deployment (Docker, Railway, Fly.io, etc.)
+
+    For HTTP transport, set PLAUD_MCP_API_KEY to require Bearer token
+    authentication on all requests.
     """
+    logging.basicConfig(level=logging.INFO)
+    _check_http_security()
+
     transport = os.environ.get("PLAUD_TRANSPORT", "stdio")
     if transport == "http":
         mcp.run(transport="streamable-http")

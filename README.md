@@ -113,6 +113,10 @@ Fully quit and restart Claude Desktop after saving.
 
 Deploy the server to the cloud so Claude connects to it over HTTP -- no local install needed.
 
+> **Security:** Always set `PLAUD_MCP_API_KEY` when deploying over HTTP. This requires all MCP clients to authenticate with a Bearer token, preventing unauthorized access to your recordings.
+>
+> Generate a key: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+
 ### Docker (self-hosted)
 
 ```bash
@@ -120,7 +124,7 @@ Deploy the server to the cloud so Claude connects to it over HTTP -- no local in
 git clone https://github.com/jameshenning/PlaudNotes.git
 cd PlaudNotes
 cp .env.example .env
-# Edit .env: set PLAUD_TOKEN and optionally PLAUD_REGION
+# Edit .env: set PLAUD_TOKEN, PLAUD_MCP_API_KEY, and optionally PLAUD_REGION
 
 # Run with Docker Compose
 docker compose up -d
@@ -130,7 +134,11 @@ docker compose up -d
 
 Then connect Claude Code to the remote server:
 ```bash
+# Without API key auth
 claude mcp add --transport http plaud-notes http://localhost:8000/mcp
+
+# With API key auth (pass as header)
+claude mcp add --transport http -H "Authorization: Bearer YOUR_API_KEY" plaud-notes http://localhost:8000/mcp
 ```
 
 ### Railway (one-click cloud)
@@ -138,7 +146,8 @@ claude mcp add --transport http plaud-notes http://localhost:8000/mcp
 1. Push this repo to your GitHub
 2. Go to [railway.app](https://railway.app), create a new project from your repo
 3. Add environment variables in the Railway dashboard:
-   - `PLAUD_TOKEN` = your token
+   - `PLAUD_TOKEN` = your Plaud token
+   - `PLAUD_MCP_API_KEY` = a generated API key (see above)
    - `PLAUD_TRANSPORT` = `http`
    - `PLAUD_MCP_HOST` = `0.0.0.0`
    - `PLAUD_REGION` = `us` (or `eu`)
@@ -155,8 +164,9 @@ claude mcp add --transport http plaud-notes http://localhost:8000/mcp
 cd PlaudNotes
 fly launch --no-deploy
 
-# Set your token as a secret
+# Set secrets (never in fly.toml)
 fly secrets set PLAUD_TOKEN="eyJhbGciOiJI..."
+fly secrets set PLAUD_MCP_API_KEY="your_generated_key"
 
 # Deploy
 fly deploy
@@ -172,6 +182,7 @@ Any platform that runs Docker containers works. Set these environment variables:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PLAUD_TOKEN` | Yes | - | Your Plaud bearer token |
+| `PLAUD_MCP_API_KEY` | Recommended | - | API key for HTTP auth (Bearer token) |
 | `PLAUD_TRANSPORT` | Yes (remote) | `stdio` | Set to `http` for remote deployment |
 | `PLAUD_MCP_HOST` | No | `0.0.0.0` | Bind address |
 | `PLAUD_MCP_PORT` | No | `8000` | Listen port |
@@ -187,7 +198,10 @@ For Claude Desktop, add the remote URL to your config:
   "mcpServers": {
     "plaud-notes": {
       "type": "http",
-      "url": "https://your-deployment-url.example.com/mcp"
+      "url": "https://your-deployment-url.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
     }
   }
 }
