@@ -1,0 +1,13 @@
+services:
+  plaud-notes-mcp:
+    build: .
+    ports:
+      - "${PLAUD_MCP_PORT:-8000}:8000"
+    environment:
+      - PLAUD_TOKEN=${PLAUD_TOKEN}
+      - PLAUD_REGION=${PLAUD_REGION:-us}
+      - PLAUD_API_DOMAIN=${PLAUD_API_DOMAIN:-}
+      - PLAUD_TRANSPORT=http
+      - PLAUD_MCP_HOST=0.0.0.0
+      - PLAUD_MCP_PORT=8000
+    restart: unless-stopped

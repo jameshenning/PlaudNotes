@@ -26,6 +26,8 @@ mcp = FastMCP(
         "Access your Plaud Notes recordings, transcripts, and AI summaries. "
         "Search across all your voice notes for context and historical reference."
     ),
+    host=os.environ.get("PLAUD_MCP_HOST", "127.0.0.1"),
+    port=int(os.environ.get("PLAUD_MCP_PORT", "8000")),
 )
 
 # ── Client singleton ────────────────────────────────────────────
@@ -463,8 +465,17 @@ def summary_resource(file_id: str) -> str:
 
 
 def main() -> None:
-    """Run the MCP server."""
-    mcp.run(transport="stdio")
+    """Run the MCP server.
+
+    Transport is selected via PLAUD_TRANSPORT env var:
+      - "stdio" (default) for Claude Code CLI / Claude Desktop local
+      - "http" for remote deployment (Docker, Railway, Fly.io, etc.)
+    """
+    transport = os.environ.get("PLAUD_TRANSPORT", "stdio")
+    if transport == "http":
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

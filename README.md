@@ -109,6 +109,90 @@ Edit your config file:
 
 Fully quit and restart Claude Desktop after saving.
 
+## Remote Deployment (Docker)
+
+Deploy the server to the cloud so Claude connects to it over HTTP -- no local install needed.
+
+### Docker (self-hosted)
+
+```bash
+# Clone and configure
+git clone https://github.com/jameshenning/PlaudNotes.git
+cd PlaudNotes
+cp .env.example .env
+# Edit .env: set PLAUD_TOKEN and optionally PLAUD_REGION
+
+# Run with Docker Compose
+docker compose up -d
+
+# Server is now running at http://localhost:8000/mcp
+```
+
+Then connect Claude Code to the remote server:
+```bash
+claude mcp add --transport http plaud-notes http://localhost:8000/mcp
+```
+
+### Railway (one-click cloud)
+
+1. Push this repo to your GitHub
+2. Go to [railway.app](https://railway.app), create a new project from your repo
+3. Add environment variables in the Railway dashboard:
+   - `PLAUD_TOKEN` = your token
+   - `PLAUD_TRANSPORT` = `http`
+   - `PLAUD_MCP_HOST` = `0.0.0.0`
+   - `PLAUD_REGION` = `us` (or `eu`)
+4. Railway auto-detects the `Dockerfile` and deploys
+5. Copy your Railway URL and connect Claude:
+   ```bash
+   claude mcp add --transport http plaud-notes https://your-app.up.railway.app/mcp
+   ```
+
+### Fly.io
+
+```bash
+# Install the Fly CLI, then:
+cd PlaudNotes
+fly launch --no-deploy
+
+# Set your token as a secret
+fly secrets set PLAUD_TOKEN="eyJhbGciOiJI..."
+
+# Deploy
+fly deploy
+
+# Connect Claude to your Fly app
+claude mcp add --transport http plaud-notes https://plaud-notes-mcp.fly.dev/mcp
+```
+
+### Render / Generic Docker Host
+
+Any platform that runs Docker containers works. Set these environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PLAUD_TOKEN` | Yes | - | Your Plaud bearer token |
+| `PLAUD_TRANSPORT` | Yes (remote) | `stdio` | Set to `http` for remote deployment |
+| `PLAUD_MCP_HOST` | No | `0.0.0.0` | Bind address |
+| `PLAUD_MCP_PORT` | No | `8000` | Listen port |
+| `PLAUD_REGION` | No | `us` | `us` or `eu` |
+| `PLAUD_API_DOMAIN` | No | - | Override API URL directly |
+
+### Connect Claude Desktop to a Remote Server
+
+For Claude Desktop, add the remote URL to your config:
+
+```json
+{
+  "mcpServers": {
+    "plaud-notes": {
+      "type": "http",
+      "url": "https://your-deployment-url.example.com/mcp"
+    }
+  }
+}
+```
+
 ## Available Tools
 
 Once connected, Claude has access to 12 tools:
@@ -148,18 +232,32 @@ Once configured, you can ask Claude things like:
 | `Authentication error` | Your token may be expired. Sign into web.plaud.ai again and get a new token. |
 | `No recordings found` | Ensure "Private Cloud Sync" is enabled in the Plaud mobile app (Me > Private Cloud Sync). |
 | `Region mismatch` | The server auto-redirects, but you can explicitly set `PLAUD_REGION=eu` if your account is in the EU. |
-| `Connection refused` | Verify the server is running. Test with `python -m plaud_notes_mcp.server` directly. |
+| `Connection refused` (local) | Verify the server is running. Test with `python -m plaud_notes_mcp.server` directly. |
+| `Connection refused` (remote) | Check that `PLAUD_TRANSPORT=http` and `PLAUD_MCP_HOST=0.0.0.0` are set. Check your cloud platform logs. |
+| Docker container exits | Run `docker compose logs` to see the error. Usually a missing `PLAUD_TOKEN`. |
 
 ## Architecture
 
 ```
-src/plaud_notes_mcp/
-  __init__.py          # Package metadata
-  plaud_client.py      # Plaud API client (auth, recordings, transcripts, summaries)
-  server.py            # MCP server (12 tools + 3 resources)
+PlaudNotes/
+  src/plaud_notes_mcp/
+    __init__.py          # Package metadata
+    plaud_client.py      # Plaud API client (auth, recordings, transcripts, summaries)
+    server.py            # MCP server (12 tools, 3 resources, stdio + HTTP transport)
+  Dockerfile             # Container image for remote deployment
+  docker-compose.yml     # One-command local Docker setup
+  fly.toml               # Fly.io deployment config
+  railway.toml           # Railway deployment config
+  Procfile               # Generic PaaS entry point
+  pyproject.toml         # Python package definition
+  .env.example           # Configuration template
 ```
 
-The server uses the Plaud web API (the same API that powers web.plaud.ai). This is a reverse-engineered, unofficial API - it is not endorsed by Plaud and may change without notice.
+The server uses the Plaud web API (the same API that powers web.plaud.ai). This is a reverse-engineered, unofficial API -- it is not endorsed by Plaud and may change without notice.
+
+**Transport modes:**
+- **stdio** (default) -- for local use with Claude Code CLI and Claude Desktop
+- **HTTP** (`PLAUD_TRANSPORT=http`) -- for remote/cloud deployment, serves at `/mcp`
 
 ## Security Notes
 
