@@ -86,6 +86,8 @@ def list_recordings(
                 "duration": rec.duration_str,
                 "created": rec.created_at.isoformat() if rec.created_at else "unknown",
                 "size_bytes": rec.filesize,
+                "has_transcript": rec.is_transcribed,
+                "has_summary": rec.is_summarized,
             }
             results.append(entry)
 

@@ -35,22 +35,30 @@ class Recording:
     filesize: int
     created_at: datetime | None = None
 
+    is_transcribed: bool = False
+    is_summarized: bool = False
+    tags: list[str] = field(default_factory=list)
+
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> Recording:
         created = None
-        if data.get("start_time"):
+        st = data.get("start_time", 0)
+        if st:
             try:
-                created = datetime.fromtimestamp(data["start_time"] / 1000)
+                created = datetime.fromtimestamp(st / 1000)
             except (ValueError, OSError):
                 pass
         return cls(
-            file_id=data.get("file_id", ""),
+            file_id=data.get("id", data.get("file_id", "")),
             filename=data.get("filename", "Untitled"),
             duration_ms=data.get("duration", 0),
-            start_time=data.get("start_time", 0),
+            start_time=st,
             end_time=data.get("end_time", 0),
             filesize=data.get("filesize", 0),
             created_at=created,
+            is_transcribed=bool(data.get("is_trans", False)),
+            is_summarized=bool(data.get("is_summary", False)),
+            tags=data.get("filetag_id_list", []) or [],
         )
 
     @property
@@ -79,8 +87,8 @@ class TranscriptSegment:
         return cls(
             text=data.get("text", ""),
             speaker=data.get("speaker", data.get("spk", "")),
-            start_ms=data.get("start", data.get("bg", 0)),
-            end_ms=data.get("end", data.get("ed", 0)),
+            start_ms=data.get("start_time_ms", data.get("start", data.get("bg", 0))),
+            end_ms=data.get("end_time_ms", data.get("end", data.get("ed", 0))),
         )
 
 
@@ -215,7 +223,23 @@ class PlaudClient:
                         status_code=401,
                     )
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+
+                # Handle region mismatch: API returns status -302
+                # with the correct domain to use
+                if isinstance(data, dict) and data.get("status") == -302:
+                    correct_domain = data.get("domain", "")
+                    if correct_domain:
+                        new_base = f"https://{correct_domain}"
+                        self._client = httpx.Client(
+                            base_url=new_base,
+                            headers=self._build_headers(),
+                            timeout=DEFAULT_TIMEOUT,
+                        )
+                        self._base_url = new_base
+                        return self._request(method, path, **kwargs)
+
+                return data
             except PlaudAuthError:
                 raise
             except httpx.HTTPStatusError as e:
@@ -259,9 +283,13 @@ class PlaudClient:
                 "is_desc": str(descending).lower(),
             },
         )
-        files = data.get("data", [])
-        if isinstance(files, dict):
-            files = files.get("file_list", files.get("files", []))
+        # API returns data_file_list at the top level
+        files = data.get("data_file_list", [])
+        if not files:
+            # Fallback for alternative response shapes
+            files = data.get("data", [])
+            if isinstance(files, dict):
+                files = files.get("file_list", files.get("files", []))
         return [Recording.from_api(f) for f in files]
 
     def get_recording_detail(self, file_id: str) -> dict[str, Any]:
@@ -272,7 +300,8 @@ class PlaudClient:
     def get_audio_url(self, file_id: str) -> str:
         """Get a temporary download URL for the recording audio."""
         data = self._get(f"/file/temp-url/{file_id}", params={"is_opus": 0})
-        return data.get("data", {}).get("url", "")
+        # API returns temp_url at top level
+        return data.get("temp_url", data.get("data", {}).get("url", ""))
 
     # ── Transcripts ─────────────────────────────────────────────
 
@@ -313,12 +342,13 @@ class PlaudClient:
     def list_tags(self) -> list[Tag]:
         """List all tags/folders."""
         data = self._get("/filetag/")
-        tags_data = data.get("data", [])
+        # API returns data_filetag_list at top level
+        tags_data = data.get("data_filetag_list", data.get("data", []))
         return [
             Tag(
                 tag_id=t.get("id", t.get("tag_id", "")),
                 name=t.get("name", ""),
-                count=t.get("count", 0),
+                count=t.get("file_count", t.get("count", 0)),
             )
             for t in tags_data
         ]
