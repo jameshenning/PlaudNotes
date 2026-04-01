@@ -1,27 +1,48 @@
 # Plaud Notes MCP Server
 
-An MCP (Model Context Protocol) server that connects your Plaud Notes account to Claude, giving Claude access to your voice recordings, transcripts, and AI summaries for context and historical reference.
+Connect your Plaud voice recorder to Claude. Claude gets access to your recordings, transcripts, and AI summaries -- so you can ask it about anything you've ever recorded.
+
+> **New here? No coding experience?** Follow the [Step-by-Step Setup Guide](https://github.com/jameshenning/PlaudNotes/issues/2) -- it walks you through everything with checkboxes.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/plaud-notes?referralCode=plaud)
+
+## What Can Claude Do With Your Plaud Notes?
+
+Once connected, just talk to Claude naturally:
+
+- *"Show me my recent recordings"*
+- *"Get the transcript from my meeting yesterday"*
+- *"Search my notes for anything about the Q4 budget"*
+- *"Summarize my last 3 recordings"*
+- *"What did we discuss about hiring?"*
+- *"Load my last 5 recordings for context, then help me write a follow-up email"*
 
 ## Features
 
-- **List & Browse Recordings** - Browse all your Plaud Notes with titles, durations, dates, and transcript/summary status
-- **Full Transcripts** - Retrieve complete transcriptions with speaker labels and timestamps
-- **AI Summaries & Notes** - Access Plaud's AI-generated summaries and notes for any recording
-- **Search Across Notes** - Search by title, transcript content, or summary text
-- **Recent Context Loading** - Pull transcripts and summaries from your most recent recordings in one call
-- **Tags & Folders** - View and filter recordings by organizational tags
-- **Speakers** - List all identified speakers across your recordings
-- **Account & Devices** - Check your account info and connected Plaud devices
-- **Audio URLs** - Get temporary pre-signed download links for recording audio
+- **Browse Recordings** - See all your notes with titles, durations, and dates
+- **Full Transcripts** - Complete transcriptions with speaker labels
+- **AI Summaries** - Plaud's AI-generated summaries and notes
+- **Search Everything** - Find any topic across all your recordings
+- **Bulk Context Loading** - Pull recent transcripts into Claude in one go
+- **Tags, Speakers, Devices** - Filter by folder, see who spoke, check your devices
 
 ## Quick Start
+
+**The short version (3 steps):**
+1. Get your token from [web.plaud.ai](https://web.plaud.ai) (DevTools → Local Storage → `tokenstr`)
+2. Deploy this server (click the Railway button above, or use Docker)
+3. Point Claude at it
+
+**Detailed instructions below, or see the [full beginner guide](https://github.com/jameshenning/PlaudNotes/issues/2).**
+
+---
 
 ### 1. Get Your Plaud Token
 
 1. Sign in to [web.plaud.ai](https://web.plaud.ai)
 2. Open browser DevTools (`F12` or `Cmd+Option+I`)
-3. Go to the **Network** tab and click any recording
-4. Find a request to `api.plaud.ai` and copy the `Authorization` header value
+3. Go to **Application** tab (or **Storage** in Firefox) → **Local Storage** → `https://web.plaud.ai`
+4. Find `tokenstr` and copy its value
 5. The token is the part after `bearer ` (starts with `eyJ...`)
 
 > **Tip:** Your token lasts ~10 months. Alternatively, go to **Application > Local Storage** and copy the `tokenstr` value.
@@ -279,6 +300,15 @@ The server uses the Plaud web API (the same API that powers web.plaud.ai). This 
 - Never commit your `.env` file or token to version control (`.gitignore` covers this)
 - The token is valid for ~10 months; refresh by signing into web.plaud.ai again
 - Token is stored locally and only sent to Plaud's own API servers
+- When deployed over HTTP, always set `PLAUD_MCP_API_KEY` to protect your server
+- All `file_id` inputs are validated against path traversal and injection attacks
+- API redirects are restricted to known Plaud domains only
+- Docker container runs as non-root with read-only filesystem
+
+## Need Help?
+
+- [Step-by-Step Setup Guide](https://github.com/jameshenning/PlaudNotes/issues/2) -- Beginner-friendly checklist
+- [Open an Issue](https://github.com/jameshenning/PlaudNotes/issues/new) -- Report bugs or ask questions
 
 ## License
 
