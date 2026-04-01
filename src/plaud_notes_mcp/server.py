@@ -11,7 +11,6 @@ import hmac
 import json
 import logging
 import os
-import secrets
 
 from dotenv import load_dotenv
 from mcp.server.auth.provider import AccessToken, TokenVerifier

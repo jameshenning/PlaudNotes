@@ -6,7 +6,7 @@
 
 *Every day, I have conversations that matter. Client calls. Doctor appointments. Strategy sessions with coworkers. Quick phone calls where someone rattles off three action items while I'm driving.*
 
-*I used to lose about 80% of that information within 24 hours.*
+*I used to lose most of that information within 24 hours.*
 
 *Not anymore.*
 
@@ -205,7 +205,7 @@ Everything you need is open source. Here's the quick version:
 2. **Record your conversations** and let Plaud transcribe them
 3. **Set up the MCP server** from my repo: **[github.com/jameshenning/PlaudNotes](https://github.com/jameshenning/PlaudNotes)**
    - There's a [step-by-step setup guide](https://github.com/jameshenning/PlaudNotes/issues/2) with checkboxes — no coding experience needed
-   - One-click deploy to Railway (free tier) or run locally with Docker
+   - One-click deploy to Railway or run locally with Docker
 4. **Connect it to Claude** (Desktop or Code) — takes about 2 minutes
 5. **Start asking Claude about your recordings**
 

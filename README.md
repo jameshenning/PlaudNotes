@@ -207,7 +207,7 @@ Any platform that runs Docker containers works. Set these environment variables:
 | `PLAUD_TOKEN` | Yes | - | Your Plaud bearer token |
 | `PLAUD_MCP_API_KEY` | Recommended | - | API key for HTTP auth (Bearer token) |
 | `PLAUD_TRANSPORT` | Yes (remote) | `stdio` | Set to `http` for remote deployment |
-| `PLAUD_MCP_HOST` | No | `0.0.0.0` | Bind address |
+| `PLAUD_MCP_HOST` | No | `127.0.0.1` | Bind address (set to `0.0.0.0` for Docker/cloud) |
 | `PLAUD_MCP_PORT` | No | `8000` | Listen port |
 | `PLAUD_REGION` | No | `us` | `us` or `eu` |
 | `PLAUD_API_DOMAIN` | No | - | Override API URL directly |
@@ -285,6 +285,7 @@ PlaudNotes/
   docker-compose.yml     # One-command local Docker setup
   fly.toml               # Fly.io deployment config
   railway.toml           # Railway deployment config
+  railway.json           # Railway template config
   Procfile               # Generic PaaS entry point
   pyproject.toml         # Python package definition
   .env.example           # Configuration template
@@ -298,7 +299,7 @@ The server uses the Plaud web API (the same API that powers web.plaud.ai). This 
 
 ## Security Notes
 
-> **Important:** Before connecting sensitive data, follow the [Security Setup Guide](SECURITY_SETUP.md) to harden your Claude account (disable training, pause memory, enable 2FA).
+> **Important:** Before connecting sensitive data, follow the [Security Setup Guide](SECURITY_SETUP.md) to harden your Claude account (disable training, enable 2FA, review privacy settings).
 
 **Your data flow:**
 - Raw audio files stay on Plaud's servers -- they are never sent to Claude

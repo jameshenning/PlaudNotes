@@ -12,7 +12,7 @@ import os
 import re
 import stat
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -61,7 +61,7 @@ class Recording:
         st = data.get("start_time", 0)
         if st:
             try:
-                created = datetime.fromtimestamp(st / 1000)
+                created = datetime.fromtimestamp(st / 1000, tz=timezone.utc)
             except (ValueError, OSError):
                 pass
         return cls(
@@ -204,6 +204,10 @@ class PlaudClient:
                 f"API domain {parsed.hostname!r} is not a recognized Plaud domain. "
                 f"Allowed: {', '.join(sorted(_ALLOWED_API_DOMAINS))}"
             )
+        if parsed.path and parsed.path != "/":
+            raise PlaudAPIError("API URL must not contain a path")
+        if parsed.query or parsed.fragment:
+            raise PlaudAPIError("API URL must not contain query or fragment")
         return url
 
     @staticmethod
@@ -235,16 +239,6 @@ class PlaudClient:
             if file_token:
                 return file_token.removeprefix("bearer ").removeprefix("Bearer ")
 
-        # Check .env file in current directory
-        env_path = os.path.join(os.getcwd(), ".env")
-        if os.path.isfile(env_path):
-            with open(env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("PLAUD_TOKEN="):
-                        val = line.split("=", 1)[1].strip().strip("\"'")
-                        return val.removeprefix("bearer ").removeprefix("Bearer ")
-
         raise PlaudAuthError(
             "No Plaud token found. Set PLAUD_TOKEN env var, create "
             "~/.config/plaud/token, or pass token directly. "
@@ -262,6 +256,8 @@ class PlaudClient:
         self,
         method: str,
         path: str,
+        *,
+        _redirected: bool = False,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Make an API request with error handling and retries."""
@@ -280,18 +276,26 @@ class PlaudClient:
 
                 # Handle region mismatch: API returns status -302
                 # with the correct domain to use.
-                # Only redirect to known Plaud API domains.
+                # Only redirect once to prevent infinite loops.
                 if isinstance(data, dict) and data.get("status") == -302:
+                    if _redirected:
+                        raise PlaudAPIError(
+                            "Multiple API redirects detected; aborting."
+                        )
                     correct_domain = data.get("domain", "")
                     if correct_domain and correct_domain in _ALLOWED_API_DOMAINS:
                         new_base = f"https://{correct_domain}"
+                        old_client = self._client
                         self._client = httpx.Client(
                             base_url=new_base,
                             headers=self._build_headers(),
                             timeout=DEFAULT_TIMEOUT,
                         )
+                        old_client.close()
                         self._base_url = new_base
-                        return self._request(method, path, **kwargs)
+                        return self._request(
+                            method, path, _redirected=True, **kwargs
+                        )
                     elif correct_domain:
                         logger.warning(
                             "Ignoring redirect to untrusted domain: %s",
