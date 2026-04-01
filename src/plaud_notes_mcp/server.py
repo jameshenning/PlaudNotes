@@ -334,6 +334,110 @@ def get_audio_url(file_id: str) -> str:
         return f"API error: {e}"
 
 
+@mcp.tool()
+def get_user_info() -> str:
+    """Get your Plaud Notes account information.
+
+    Returns your user profile including email, nickname, country,
+    and membership type. Useful for verifying the connection is working.
+    """
+    try:
+        client = _get_client()
+        info = client.get_user_info()
+        return json.dumps({"user": info}, indent=2)
+    except PlaudAuthError as e:
+        return f"Authentication error: {e}"
+    except PlaudAPIError as e:
+        return f"API error: {e}"
+
+
+@mcp.tool()
+def list_devices() -> str:
+    """List all Plaud devices connected to your account.
+
+    Returns device names, serial numbers, models, and firmware versions.
+    """
+    try:
+        client = _get_client()
+        devices = client.list_devices()
+
+        if not devices:
+            return "No devices found on your Plaud account."
+
+        return json.dumps({"devices": devices}, indent=2)
+    except PlaudAuthError as e:
+        return f"Authentication error: {e}"
+    except PlaudAPIError as e:
+        return f"API error: {e}"
+
+
+@mcp.tool()
+def get_recent_context(count: int = 5) -> str:
+    """Get transcripts and summaries from your most recent recordings.
+
+    This is the best tool for loading recent conversation context into Claude.
+    It fetches the full transcript and AI summary for each of your most recent
+    recordings, giving Claude rich historical context from your voice notes.
+
+    Args:
+        count: Number of recent recordings to fetch (default 5, max 20).
+    """
+    try:
+        client = _get_client()
+        results = client.get_recent_context(count=min(count, 20))
+
+        if not results:
+            return "No recent recordings found."
+
+        return json.dumps(
+            {"recent_notes_count": len(results), "notes": results},
+            indent=2,
+        )
+    except PlaudAuthError as e:
+        return f"Authentication error: {e}"
+    except PlaudAPIError as e:
+        return f"API error: {e}"
+
+
+@mcp.tool()
+def get_recordings_by_tag(tag_id: str) -> str:
+    """Get all recordings with a specific tag/folder.
+
+    Use list_tags first to find available tag IDs, then use this tool
+    to see all recordings within that tag.
+
+    Args:
+        tag_id: The tag ID to filter by.
+    """
+    try:
+        client = _get_client()
+        recordings = client.get_recordings_by_tag(tag_id)
+
+        if not recordings:
+            return f"No recordings found with tag {tag_id}."
+
+        results = [
+            {
+                "file_id": rec.file_id,
+                "title": rec.filename,
+                "duration": rec.duration_str,
+                "created": rec.created_at.isoformat() if rec.created_at else "unknown",
+                "has_transcript": rec.is_transcribed,
+                "has_summary": rec.is_summarized,
+            }
+            for rec in recordings
+        ]
+
+        return json.dumps(
+            {"tag_id": tag_id, "count": len(results), "recordings": results},
+            indent=2,
+        )
+    except PlaudAuthError as e:
+        return f"Authentication error: {e}"
+    except PlaudAPIError as e:
+        return f"API error: {e}"
+
+
 # ── Resources ───────────────────────────────────────────────────
 
 

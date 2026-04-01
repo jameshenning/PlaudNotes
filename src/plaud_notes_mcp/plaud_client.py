@@ -360,6 +360,76 @@ class PlaudClient:
         data = self._get("/speaker/list")
         return data.get("data_speaker_list", data.get("data", []))
 
+    # ── User & Devices ─────────────────────────────────────────
+
+    def get_user_info(self) -> dict[str, Any]:
+        """Get authenticated user account info."""
+        data = self._get("/user/me")
+        return data.get("data", data)
+
+    def list_devices(self) -> list[dict[str, Any]]:
+        """List all bound Plaud devices."""
+        data = self._get("/device/list")
+        return data.get("data", [])
+
+    # ── Batch Operations ───────────────────────────────────────
+
+    def get_batch_details(self, file_ids: list[str]) -> list[dict[str, Any]]:
+        """Batch fetch details for multiple recordings."""
+        data = self._post("/file/list", json=file_ids, timeout=60)
+        return data.get("data", [])
+
+    def get_recent_context(
+        self,
+        count: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Get transcripts and summaries for the most recent recordings.
+
+        Returns a list of dicts with recording metadata, transcript text,
+        and AI summary for each of the most recent recordings.
+        """
+        recordings = self.list_recordings(limit=count, sort_by="start_time")
+        results = []
+        for rec in recordings:
+            entry: dict[str, Any] = {
+                "file_id": rec.file_id,
+                "filename": rec.filename,
+                "duration": rec.duration_str,
+                "created": rec.created_at.isoformat() if rec.created_at else "unknown",
+            }
+            try:
+                detail = self.get_recording_detail(rec.file_id)
+
+                # Extract transcript
+                trans_result = detail.get("trans_result", {})
+                if isinstance(trans_result, dict):
+                    segments = trans_result.get("segments", [])
+                    if segments:
+                        transcript = Transcript(
+                            file_id=rec.file_id,
+                            segments=[TranscriptSegment.from_api(s) for s in segments],
+                        )
+                        entry["transcript"] = transcript.full_text
+
+                # Extract summary
+                ai_content = detail.get("ai_content", "")
+                if isinstance(ai_content, dict):
+                    entry["summary"] = ai_content.get(
+                        "content", ai_content.get("summary", "")
+                    )
+                elif ai_content:
+                    entry["summary"] = str(ai_content)
+            except PlaudAPIError:
+                entry["error"] = "Could not fetch details"
+
+            results.append(entry)
+        return results
+
+    def get_recordings_by_tag(self, tag_id: str) -> list[Recording]:
+        """Get all recordings that have a specific tag."""
+        all_recordings = self.list_recordings(limit=500)
+        return [rec for rec in all_recordings if tag_id in rec.tags]
+
     # ── Search (client-side) ────────────────────────────────────
 
     def search_recordings(
