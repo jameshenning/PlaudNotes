@@ -3,6 +3,8 @@
 Connect your Plaud voice recorder to Claude. Claude gets access to your recordings, transcripts, and AI summaries -- so you can ask it about anything you've ever recorded.
 
 > **New here? No coding experience?** Follow the [Step-by-Step Setup Guide](https://github.com/jameshenning/PlaudNotes/issues/2) -- it walks you through everything with checkboxes.
+>
+> **Before you start:** Read the [Security Setup Guide](SECURITY_SETUP.md) to lock down your Claude account first. Your Plaud Notes contain private conversations -- make sure they stay private.
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/plaud-notes?referralCode=plaud)
 
@@ -296,17 +298,25 @@ The server uses the Plaud web API (the same API that powers web.plaud.ai). This 
 
 ## Security Notes
 
-- Your Plaud bearer token grants full read access to your account's recordings
-- Never commit your `.env` file or token to version control (`.gitignore` covers this)
-- The token is valid for ~10 months; refresh by signing into web.plaud.ai again
-- Token is stored locally and only sent to Plaud's own API servers
-- When deployed over HTTP, always set `PLAUD_MCP_API_KEY` to protect your server
+> **Important:** Before connecting sensitive data, follow the [Security Setup Guide](SECURITY_SETUP.md) to harden your Claude account (disable training, pause memory, enable 2FA).
+
+**Your data flow:**
+- Raw audio files stay on Plaud's servers -- they are never sent to Claude
+- Only transcript text and summaries (returned by MCP tools) are sent to Claude's API
+- With training OFF, Anthropic retains data for 30 days only and never trains on it
+- Using Incognito Chats means nothing is stored at all
+
+**Server security:**
+- Your Plaud bearer token is stored locally and only sent to Plaud's own API servers
+- When deployed over HTTP, set `PLAUD_MCP_API_KEY` to require authentication
 - All `file_id` inputs are validated against path traversal and injection attacks
 - API redirects are restricted to known Plaud domains only
 - Docker container runs as non-root with read-only filesystem
+- Never commit your `.env` file or token to version control (`.gitignore` covers this)
 
 ## Need Help?
 
+- [Security Setup Guide](SECURITY_SETUP.md) -- Lock down your Claude account before connecting
 - [Step-by-Step Setup Guide](https://github.com/jameshenning/PlaudNotes/issues/2) -- Beginner-friendly checklist
 - [Open an Issue](https://github.com/jameshenning/PlaudNotes/issues/new) -- Report bugs or ask questions
 
