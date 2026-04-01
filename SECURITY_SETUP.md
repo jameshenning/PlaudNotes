@@ -19,18 +19,18 @@ By default, Claude may use your conversations to improve its models. Turn this o
 
 ---
 
-## Step 2: Turn Off Claude's Memory
+## Step 2: Review Claude's Memory Settings
 
-Claude has a "Memory" feature that remembers things from your past conversations. You don't want it memorizing details from private meetings.
+Claude's Memory feature remembers things from your past conversations, which can be very useful -- it lets Claude build context about your projects, clients, and preferences over time.
 
 - [ ] Go to **[claude.ai/settings](https://claude.ai/settings)**
 - [ ] Click **"Capabilities"** (or **"Memory"** if you see it)
-- [ ] Find the Memory setting
-- [ ] **Turn it OFF** or click **"Pause Memory"**
+- [ ] Confirm that Memory is **ON** (this is the default and recommended for most users)
+- [ ] Review your saved memories periodically by clicking **"Manage Memory"** and remove any specific memories you don't want kept
 
-**What this does:** Prevents Claude from storing summaries of your meeting transcripts in its long-term memory. If you only pause it, existing memories stay but no new ones are created.
+**Why keep it on:** Memory is what makes Claude your second brain. It lets Claude remember your preferences, project details, and context across conversations. If Claude remembers that Client X prefers a specific tech stack, or that you discussed a deadline last week, that's Memory working for you.
 
-> **Tip:** You can turn memory back on later for non-sensitive conversations. Just pause it when working with your Plaud Notes.
+> **Tip:** You can always delete individual memories you don't want stored. Go to Settings > Memory > Manage Memory to review and remove specific items.
 
 ---
 
@@ -149,7 +149,7 @@ For the highest level of protection, Enterprise customers can request **Zero Dat
 Before connecting Plaud Notes to Claude, confirm you've done all of these:
 
 - [ ] Training toggle is **OFF** ([claude.ai/settings/data-privacy-controls](https://claude.ai/settings/data-privacy-controls))
-- [ ] Memory is **paused or OFF** (claude.ai/settings > Capabilities)
+- [ ] Memory is **ON** and you know how to manage/delete individual memories
 - [ ] You know how to start **Incognito Chats** (ghost icon)
 - [ ] Your login uses **MFA** (Google 2FA, Apple 2FA, or SSO)
 - [ ] You understand MCP tool permissions and won't auto-approve blindly
