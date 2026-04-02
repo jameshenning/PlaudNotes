@@ -6,7 +6,9 @@ Connect your Plaud voice recorder to Claude. Claude gets access to your recordin
 >
 > **Before you start:** Read the [Security Setup Guide](SECURITY_SETUP.md) to lock down your Claude account first. Your Plaud Notes contain private conversations -- make sure they stay private.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github?repo=jameshenning%2FPlaudNotes)
+<!-- To enable one-click deploy: register a template at railway.com/button,
+     then replace TEMPLATE_ID below with your template slug -->
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
 
 ## What Can Claude Do With Your Plaud Notes?
 
@@ -164,17 +166,20 @@ claude mcp add --transport http plaud-notes http://localhost:8000/mcp
 claude mcp add --transport http -H "Authorization: Bearer YOUR_API_KEY" plaud-notes http://localhost:8000/mcp
 ```
 
-### Railway (one-click cloud)
+### Railway (cloud hosting)
 
-1. Push this repo to your GitHub
-2. Go to [railway.app](https://railway.app), create a new project from your repo
-3. Add environment variables in the Railway dashboard:
-   - `PLAUD_TOKEN` = your Plaud token
-   - `PLAUD_MCP_API_KEY` = a generated API key (see above)
+1. Go to [railway.app](https://railway.app) and create a free account
+2. Click **"New Project"** → **"Deploy from GitHub repo"**
+3. Connect your GitHub account and select **PlaudNotes** (fork it first if you don't see it)
+4. Once Railway starts building, click the service → **"Variables"** tab
+5. Add these environment variables:
+   - `PLAUD_TOKEN` = your Plaud token (without the `bearer ` prefix)
+   - `PLAUD_MCP_API_KEY` = a secret password you make up
    - `PLAUD_TRANSPORT` = `http`
    - `PLAUD_MCP_HOST` = `0.0.0.0`
    - `PLAUD_REGION` = `us` (or `eu`)
-4. Railway auto-detects the `Dockerfile` and deploys
+6. Click **"Settings"** → **"Networking"** → **"Generate Domain"**
+7. Railway auto-detects the `Dockerfile` and deploys
 5. Copy your Railway URL and connect Claude:
    ```bash
    claude mcp add --transport http plaud-notes https://your-app.up.railway.app/mcp
