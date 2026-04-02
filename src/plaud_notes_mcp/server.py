@@ -13,8 +13,10 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from mcp.server.auth.provider import AccessToken
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from plaud_notes_mcp.plaud_client import (
     PlaudAPIError,
@@ -30,48 +32,43 @@ logger = logging.getLogger(__name__)
 # ── API Key Authentication for HTTP transport ──────────────────
 
 
-class APIKeyTokenVerifier:
-    """Verifies Bearer tokens against a pre-shared API key.
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    """ASGI middleware that checks Bearer token on every request.
 
-    Used when the MCP server runs in HTTP mode to prevent
-    unauthorized access to your Plaud Notes data.
+    Uses constant-time comparison to prevent timing attacks.
     """
 
-    def __init__(self, api_key: str):
+    def __init__(self, app, api_key: str):  # noqa: ANN001
+        super().__init__(app)
         self._api_key_hash = hashlib.sha256(api_key.encode()).digest()
 
-    async def verify_token(self, token: str) -> AccessToken | None:
-        token_hash = hashlib.sha256(token.encode()).digest()
-        if hmac.compare_digest(token_hash, self._api_key_hash):
-            return AccessToken(
-                token=token,
-                client_id="plaud-mcp-client",
-                scopes=["read"],
+    async def dispatch(self, request: Request, call_next):  # noqa: ANN001
+        auth = request.headers.get("authorization", "")
+        token = auth.removeprefix("Bearer ").removeprefix("bearer ")
+        if not token or token == auth:
+            return JSONResponse(
+                {"error": "Missing Bearer token in Authorization header"},
+                status_code=401,
             )
-        return None
+        token_hash = hashlib.sha256(token.encode()).digest()
+        if not hmac.compare_digest(token_hash, self._api_key_hash):
+            return JSONResponse(
+                {"error": "Invalid API key"},
+                status_code=403,
+            )
+        return await call_next(request)
 
 
 def _build_server() -> FastMCP:
-    """Build the FastMCP server with appropriate auth settings."""
-    transport = os.environ.get("PLAUD_TRANSPORT", "stdio")
-    api_key = os.environ.get("PLAUD_MCP_API_KEY", "")
-
-    kwargs: dict = {
-        "host": os.environ.get("PLAUD_MCP_HOST", "127.0.0.1"),
-        "port": int(os.environ.get("PLAUD_MCP_PORT", "8000")),
-    }
-
-    # Enable token verification for HTTP transport when API key is set
-    if transport == "http" and api_key:
-        kwargs["token_verifier"] = APIKeyTokenVerifier(api_key)
-
+    """Build the FastMCP server."""
     return FastMCP(
         "Plaud Notes",
         instructions=(
             "Access your Plaud Notes recordings, transcripts, and AI summaries. "
             "Search across all your voice notes for context and historical reference."
         ),
-        **kwargs,
+        host=os.environ.get("PLAUD_MCP_HOST", "127.0.0.1"),
+        port=int(os.environ.get("PLAUD_MCP_PORT", "8000")),
     )
 
 
@@ -545,7 +542,19 @@ def main() -> None:
 
     transport = os.environ.get("PLAUD_TRANSPORT", "stdio")
     if transport == "http":
-        mcp.run(transport="streamable-http")
+        # Add API key middleware if configured
+        api_key = os.environ.get("PLAUD_MCP_API_KEY", "")
+        if api_key:
+            app = mcp.streamable_http_app()
+            app.add_middleware(APIKeyMiddleware, api_key=api_key)
+            import uvicorn
+            uvicorn.run(
+                app,
+                host=os.environ.get("PLAUD_MCP_HOST", "127.0.0.1"),
+                port=int(os.environ.get("PLAUD_MCP_PORT", "8000")),
+            )
+        else:
+            mcp.run(transport="streamable-http")
     else:
         mcp.run(transport="stdio")
 
