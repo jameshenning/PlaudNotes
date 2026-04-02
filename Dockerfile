@@ -1,33 +1,28 @@
-FROM python:3.12-slim AS builder
-
-WORKDIR /app
-
-# Install build dependencies for any native extensions
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY pyproject.toml README.md ./
-COPY src/ src/
-RUN pip install --no-cache-dir --prefix=/install .
-
-# --- Runtime stage (slim, no build tools) ---
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Create non-root user
-RUN groupadd -r mcp && useradd -r -g mcp -d /app -s /sbin/nologin mcp
+# Install build tools needed for native extensions (cryptography, pydantic-core)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc python3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /install /usr/local
-COPY --from=builder /app /app
-RUN chown -R mcp:mcp /app
+# Copy project files
+COPY pyproject.toml README.md ./
+COPY src/ src/
 
-# Switch to non-root user
+# Install the package
+RUN pip install --no-cache-dir .
+
+# Clean up build tools to reduce image size
+RUN apt-get purge -y --auto-remove gcc python3-dev
+
+# Create non-root user and set ownership
+RUN groupadd -r mcp && useradd -r -g mcp -d /app -s /sbin/nologin mcp && \
+    chown -R mcp:mcp /app
+
 USER mcp
 
-# Default to HTTP transport for remote deployment
 ENV PLAUD_TRANSPORT=http
 ENV PLAUD_MCP_PORT=8000
 ENV PLAUD_MCP_HOST=0.0.0.0
