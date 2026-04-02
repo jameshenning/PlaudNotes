@@ -6,7 +6,7 @@ Connect your Plaud voice recorder to Claude. Claude gets access to your recordin
 >
 > **Before you start:** Read the [Security Setup Guide](SECURITY_SETUP.md) to lock down your Claude account first. Your Plaud Notes contain private conversations -- make sure they stay private.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2Fjameshenning%2FPlaudNotes&envs=PLAUD_TOKEN%2CPLAUD_MCP_API_KEY%2CPLAUD_TRANSPORT%2CPLAUD_MCP_HOST&PLAUD_TRANSPORT=http&PLAUD_MCP_HOST=0.0.0.0&PLAUD_TOKENDesc=Your+Plaud+bearer+token+from+web.plaud.ai+%28without+the+%22bearer+%22+prefix%29&PLAUD_MCP_API_KEYDesc=A+secret+password+to+protect+your+server+%28make+one+up%29&PLAUD_TRANSPORTDesc=Leave+as+http&PLAUD_MCP_HOSTDesc=Leave+as+0.0.0.0)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/github?repo=jameshenning%2FPlaudNotes)
 
 ## What Can Claude Do With Your Plaud Notes?
 
