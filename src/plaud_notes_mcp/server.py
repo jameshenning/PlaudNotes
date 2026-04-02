@@ -13,7 +13,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.provider import AccessToken
 from mcp.server.fastmcp import FastMCP
 
 from plaud_notes_mcp.plaud_client import (
